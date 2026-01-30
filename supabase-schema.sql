@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS public.products (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
   title VARCHAR(200) NOT NULL,
   price DECIMAL(10, 2) NOT NULL CHECK (price >= 0),
+  discount_percentage DECIMAL(5, 2) DEFAULT 0 CHECK (discount_percentage >= 0 AND discount_percentage <= 100),
   description TEXT,
   image_url TEXT,
   category_id UUID REFERENCES public.categories(id) ON DELETE SET NULL,

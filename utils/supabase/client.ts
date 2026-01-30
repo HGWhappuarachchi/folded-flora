@@ -26,6 +26,7 @@ export type Product = {
     created_at: string
     title: string
     price: number
+    discount_percentage: number
     description: string | null
     image_url: string | null
     category_id: string | null
@@ -33,6 +34,18 @@ export type Product = {
     updated_at: string
 }
 
+export type ProductImage = {
+    id: string
+    product_id: string
+    image_url: string
+    display_order: number
+    created_at: string
+}
+
 export type ProductWithCategory = Product & {
     categories: Category | null
+}
+
+export type ProductWithImages = Product & {
+    product_images: ProductImage[]
 }

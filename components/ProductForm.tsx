@@ -1,14 +1,23 @@
 'use client'
 
-import { useState, useRef, FormEvent } from 'react'
-import { supabase, type Category } from '@/utils/supabase/client'
+import { useState, useRef, FormEvent, useEffect } from 'react'
+import { supabase, type Category, type Product } from '@/utils/supabase/client'
+import MultiImageUpload from './MultiImageUpload'
+
+interface ImageFile {
+    file: File
+    preview: string
+    id: string
+}
 
 interface ProductFormProps {
     categories: Category[]
     onSuccess: () => void
+    editProduct?: Product | null
+    onCancelEdit?: () => void
 }
 
-export default function ProductForm({ categories, onSuccess }: ProductFormProps) {
+export default function ProductForm({ categories, onSuccess, editProduct, onCancelEdit }: ProductFormProps) {
     const [loading, setLoading] = useState(false)
     const [uploadProgress, setUploadProgress] = useState(0)
     const fileInputRef = useRef<HTMLInputElement>(null)
@@ -16,10 +25,28 @@ export default function ProductForm({ categories, onSuccess }: ProductFormProps)
     const [formData, setFormData] = useState({
         title: '',
         price: '',
+        discount_percentage: '0',
         description: '',
         category_id: '',
-        image: null as File | null,
     })
+
+    const [imageFiles, setImageFiles] = useState<ImageFile[]>([])
+
+    // Populate form when editing a product
+    useEffect(() => {
+        if (editProduct) {
+            setFormData({
+                title: editProduct.title,
+                price: editProduct.price.toString(),
+                discount_percentage: editProduct.discount_percentage.toString(),
+                description: editProduct.description || '',
+                category_id: editProduct.category_id || '',
+            })
+            setImageFiles([]) // Clear images when switching products
+        } else {
+            setImageFiles([]) // Clear images when canceling edit
+        }
+    }, [editProduct])
 
     const handleSubmit = async (e: FormEvent) => {
         e.preventDefault()
@@ -27,50 +54,118 @@ export default function ProductForm({ categories, onSuccess }: ProductFormProps)
         setUploadProgress(0)
 
         try {
-            let imageUrl = null
+            setUploadProgress(20)
 
-            // Upload image if provided
-            if (formData.image) {
-                const fileExt = formData.image.name.split('.').pop()
-                const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`
-                const filePath = `${fileName}`
+            // Upload all images
+            const uploadedImageUrls: { url: string; order: number }[] = []
 
-                setUploadProgress(30)
+            if (imageFiles.length > 0) {
+                for (let i = 0; i < imageFiles.length; i++) {
+                    const file = imageFiles[i].file
+                    const fileExt = file.name.split('.').pop()
+                    const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`
+                    const filePath = `${fileName}`
 
-                const { error: uploadError, data } = await supabase.storage
-                    .from('product-images')
-                    .upload(filePath, formData.image)
+                    const { error: uploadError } = await supabase.storage
+                        .from('product-images')
+                        .upload(filePath, file)
 
-                if (uploadError) {
-                    throw new Error(`Image upload failed: ${uploadError.message}`)
+                    if (uploadError) {
+                        throw new Error(`Image ${i + 1} upload failed: ${uploadError.message}`)
+                    }
+
+                    // Get public URL
+                    const { data: urlData } = supabase.storage
+                        .from('product-images')
+                        .getPublicUrl(filePath)
+
+                    uploadedImageUrls.push({ url: urlData.publicUrl, order: i })
+                    setUploadProgress(20 + ((i + 1) / imageFiles.length) * 40)
                 }
-
-                setUploadProgress(60)
-
-                // Get public URL
-                const { data: urlData } = supabase.storage
-                    .from('product-images')
-                    .getPublicUrl(filePath)
-
-                imageUrl = urlData.publicUrl
             }
 
-            setUploadProgress(80)
+            setUploadProgress(70)
 
-            // Insert product into database
-            const { error: insertError } = await supabase
-                .from('products')
-                .insert({
+            if (editProduct) {
+                // Update existing product
+                const updateData: any = {
                     title: formData.title,
                     price: parseFloat(formData.price),
+                    discount_percentage: parseFloat(formData.discount_percentage),
                     description: formData.description || null,
                     category_id: formData.category_id || null,
-                    image_url: imageUrl,
-                    is_active: true,
-                })
+                }
 
-            if (insertError) {
-                throw new Error(`Product creation failed: ${insertError.message}`)
+                // Update main image if first image was uploaded
+                if (uploadedImageUrls.length > 0) {
+                    updateData.image_url = uploadedImageUrls[0].url
+                }
+
+                const { error: updateError } = await supabase
+                    .from('products')
+                    .update(updateData)
+                    .eq('id', editProduct.id)
+
+                if (updateError) {
+                    throw new Error(`Product update failed: ${updateError.message}`)
+                }
+
+                // Add new images to product_images table
+                if (uploadedImageUrls.length > 0) {
+                    const imageRecords = uploadedImageUrls.map((img) => ({
+                        product_id: editProduct.id,
+                        image_url: img.url,
+                        display_order: img.order,
+                    }))
+
+                    const { error: imagesError } = await supabase
+                        .from('product_images')
+                        .insert(imageRecords)
+
+                    if (imagesError) {
+                        console.error('Failed to add some images:', imagesError)
+                    }
+                }
+
+                alert('Product updated successfully!')
+            } else {
+                // Insert new product
+                const { error: insertError, data: productData } = await supabase
+                    .from('products')
+                    .insert({
+                        title: formData.title,
+                        price: parseFloat(formData.price),
+                        discount_percentage: parseFloat(formData.discount_percentage),
+                        description: formData.description || null,
+                        category_id: formData.category_id || null,
+                        image_url: uploadedImageUrls.length > 0 ? uploadedImageUrls[0].url : null,
+                        is_active: true,
+                    })
+                    .select()
+                    .single()
+
+                if (insertError || !productData) {
+                    throw new Error(`Product creation failed: ${insertError?.message}`)
+                }
+
+                // Insert all images into product_images table
+                if (uploadedImageUrls.length > 0) {
+                    const imageRecords = uploadedImageUrls.map((img) => ({
+                        product_id: productData.id,
+                        image_url: img.url,
+                        display_order: img.order,
+                    }))
+
+                    const { error: imagesError } = await supabase
+                        .from('product_images')
+                        .insert(imageRecords)
+
+                    if (imagesError) {
+                        console.error('Failed to add some images:', imagesError)
+                    }
+                }
+
+                alert('Product added successfully!')
             }
 
             setUploadProgress(100)
@@ -79,17 +174,18 @@ export default function ProductForm({ categories, onSuccess }: ProductFormProps)
             setFormData({
                 title: '',
                 price: '',
+                discount_percentage: '0',
                 description: '',
                 category_id: '',
-                image: null,
             })
+            setImageFiles([])
 
             if (fileInputRef.current) {
                 fileInputRef.current.value = ''
             }
 
-            alert('Product added successfully!')
             onSuccess()
+            if (onCancelEdit) onCancelEdit()
         } catch (error) {
             console.error('Error adding product:', error)
             alert(error instanceof Error ? error.message : 'Failed to add product')
@@ -101,7 +197,20 @@ export default function ProductForm({ categories, onSuccess }: ProductFormProps)
 
     return (
         <form onSubmit={handleSubmit} className="card p-6 space-y-4">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">Add New Product</h2>
+            <div className="flex justify-between items-center mb-4">
+                <h2 className="text-2xl font-bold text-gray-900">
+                    {editProduct ? 'Edit Product' : 'Add New Product'}
+                </h2>
+                {editProduct && onCancelEdit && (
+                    <button
+                        type="button"
+                        onClick={onCancelEdit}
+                        className="text-gray-600 hover:text-gray-800 transition-colors"
+                    >
+                        ✕ Cancel
+                    </button>
+                )}
+            </div>
 
             {/* Title */}
             <div>
@@ -133,6 +242,28 @@ export default function ProductForm({ categories, onSuccess }: ProductFormProps)
                     className="input-field"
                     placeholder="e.g., 1500.00"
                 />
+            </div>
+
+            {/* Discount */}
+            <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Discount (%) - Optional
+                </label>
+                <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    value={formData.discount_percentage}
+                    onChange={(e) => setFormData({ ...formData, discount_percentage: e.target.value })}
+                    className="input-field"
+                    placeholder="e.g., 10 for 10% off"
+                />
+                {parseFloat(formData.discount_percentage) > 0 && (
+                    <p className="text-sm text-pink-600 mt-1">
+                        Discounted price: LKR {(parseFloat(formData.price) * (1 - parseFloat(formData.discount_percentage) / 100)).toFixed(2)}
+                    </p>
+                )}
             </div>
 
             {/* Description */}
@@ -170,21 +301,14 @@ export default function ProductForm({ categories, onSuccess }: ProductFormProps)
 
             {/* Image Upload */}
             <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Product Image
+                <label className="block text-sm font-semibold text-gray-700 mb-3">
+                    Product Images (Up to 5)
                 </label>
-                <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => setFormData({ ...formData, image: e.target.files?.[0] || null })}
-                    className="block w-full text-sm text-gray-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-pink-300 file:text-gray-800 hover:file:bg-purple-300 transition-all"
+                <MultiImageUpload
+                    images={imageFiles}
+                    onChange={setImageFiles}
+                    maxImages={5}
                 />
-                {formData.image && (
-                    <p className="text-sm text-gray-600 mt-2">
-                        Selected: {formData.image.name}
-                    </p>
-                )}
             </div>
 
             {/* Progress Bar */}
@@ -206,7 +330,7 @@ export default function ProductForm({ categories, onSuccess }: ProductFormProps)
           ${loading ? 'opacity-50 cursor-not-allowed' : ''}
         `}
             >
-                {loading ? 'Adding Product...' : 'Add Product'}
+                {loading ? (editProduct ? 'Updating Product...' : 'Adding Product...') : (editProduct ? 'Update Product' : 'Add Product')}
             </button>
         </form>
     )

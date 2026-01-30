@@ -12,6 +12,7 @@ export default function AdminPage() {
     const [loading, setLoading] = useState(true)
     const [products, setProducts] = useState<Product[]>([])
     const [categories, setCategories] = useState<Category[]>([])
+    const [editingProduct, setEditingProduct] = useState<Product | null>(null)
 
     // Authentication
     const [email, setEmail] = useState('')
@@ -113,7 +114,19 @@ export default function AdminPage() {
         } else {
             alert('Product deleted successfully!')
             fetchProducts()
+            setEditingProduct(null) // Clear edit mode if deleting the product being edited
         }
+    }
+
+    function handleEdit(product: Product) {
+        setEditingProduct(product)
+        // Scroll to form
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+    }
+
+    function handleSuccessAndClearEdit() {
+        fetchProducts()
+        setEditingProduct(null)
     }
 
     // Loading state
@@ -128,55 +141,101 @@ export default function AdminPage() {
     // Login screen
     if (!user) {
         return (
-            <div className="min-h-screen flex items-center justify-center px-4">
-                <div className="card p-8 w-full max-w-md">
-                    <h1 className="text-3xl font-bold text-center mb-2">🌸 Admin Login</h1>
-                    <p className="text-gray-600 text-center mb-6">Folded Flora Dashboard</p>
+            <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-gradient-to-br from-pink-50 to-purple-50">
+                {/* Background Blobs */}
+                <div className="absolute top-0 left-0 w-72 h-72 bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob"></div>
+                <div className="absolute top-0 right-0 w-72 h-72 bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob animation-delay-2000"></div>
+                <div className="absolute -bottom-8 left-1/2 w-72 h-72 bg-yellow-300 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob animation-delay-4000"></div>
 
-                    <form onSubmit={handleSignIn} className="space-y-4">
-                        <div>
-                            <label className="block text-sm font-semibold text-gray-700 mb-2">
-                                Email
+                <div className="bg-white/70 backdrop-blur-xl p-8 md:p-12 rounded-3xl shadow-2xl w-full max-w-lg relative z-10 border border-white/50 animate-scaleIn">
+                    <div className="text-center mb-10">
+                        <div className="w-20 h-20 bg-gradient-to-br from-pink-400 to-purple-500 rounded-2xl mx-auto mb-6 flex items-center justify-center text-white shadow-lg transform rotate-3 hover:rotate-6 transition-transform duration-300">
+                            <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                            </svg>
+                        </div>
+                        <h1 className="text-4xl font-extrabold text-gray-900 mb-2 tracking-tight">
+                            Welcome Back
+                        </h1>
+                        <p className="text-gray-500 font-medium">
+                            Sign in to manage your <br />
+                            <span className="text-transparent bg-clip-text bg-gradient-to-r from-pink-500 to-purple-500 font-bold">
+                                Folded Flora Store
+                            </span>
+                        </p>
+                    </div>
+
+                    <form onSubmit={handleSignIn} className="space-y-6">
+                        <div className="space-y-2">
+                            <label className="text-sm font-bold text-gray-700 ml-1">
+                                Email Address
                             </label>
-                            <input
-                                type="email"
-                                required
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
-                                className="input-field"
-                                placeholder="admin@foldedflora.com"
-                            />
+                            <div className="relative">
+                                <span className="absolute left-4 top-3.5 text-gray-400">
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                    </svg>
+                                </span>
+                                <input
+                                    type="email"
+                                    required
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
+                                    className="w-full pl-12 pr-4 py-3.5 rounded-xl border border-gray-200 bg-white/50 focus:bg-white focus:border-pink-400 focus:ring-4 focus:ring-pink-100 transition-all outline-none"
+                                    placeholder="admin@foldedflora.com"
+                                />
+                            </div>
                         </div>
 
-                        <div>
-                            <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        <div className="space-y-2">
+                            <label className="text-sm font-bold text-gray-700 ml-1">
                                 Password
                             </label>
-                            <input
-                                type="password"
-                                required
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                className="input-field"
-                                placeholder="Enter your password"
-                            />
+                            <div className="relative">
+                                <span className="absolute left-4 top-3.5 text-gray-400">
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                    </svg>
+                                </span>
+                                <input
+                                    type="password"
+                                    required
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    className="w-full pl-12 pr-4 py-3.5 rounded-xl border border-gray-200 bg-white/50 focus:bg-white focus:border-pink-400 focus:ring-4 focus:ring-pink-100 transition-all outline-none"
+                                    placeholder="••••••••"
+                                />
+                            </div>
                         </div>
 
                         <button
                             type="submit"
                             disabled={authLoading}
-                            className="w-full btn-primary"
+                            className="w-full py-4 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 disabled:opacity-70 disabled:cursor-not-allowed"
                         >
-                            {authLoading ? 'Signing in...' : 'Sign In'}
+                            {authLoading ? (
+                                <span className="flex items-center justify-center gap-2">
+                                    <svg className="animate-spin h-5 w-5 text-white" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle>
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                    Signing in...
+                                </span>
+                            ) : (
+                                'Sign In to Dashboard'
+                            )}
                         </button>
                     </form>
 
-                    <button
-                        onClick={() => router.push('/')}
-                        className="w-full mt-4 text-gray-600 hover:text-gray-800 transition-colors"
-                    >
-                        ← Back to Store
-                    </button>
+                    <div className="mt-8 text-center">
+                        <button
+                            onClick={() => router.push('/')}
+                            className="text-gray-500 hover:text-pink-600 font-medium text-sm transition-colors flex items-center justify-center gap-1 mx-auto group"
+                        >
+                            <span className="transform group-hover:-translate-x-1 transition-transform">←</span>
+                            Back to Store
+                        </button>
+                    </div>
                 </div>
             </div>
         )
@@ -219,7 +278,9 @@ export default function AdminPage() {
                     <div className="lg:col-span-1">
                         <ProductForm
                             categories={categories}
-                            onSuccess={fetchProducts}
+                            onSuccess={handleSuccessAndClearEdit}
+                            editProduct={editingProduct}
+                            onCancelEdit={() => setEditingProduct(null)}
                         />
                     </div>
 
@@ -265,13 +326,26 @@ export default function AdminPage() {
                                                     <p className="text-gray-600 text-sm line-clamp-1">
                                                         {product.description || 'No description'}
                                                     </p>
-                                                    <p className="text-xl font-bold text-gray-900 mt-1">
-                                                        LKR {product.price.toFixed(2)}
-                                                    </p>
+                                                    <div className="flex items-center gap-2 mt-1">
+                                                        <p className="text-xl font-bold text-gray-900">
+                                                            LKR {product.price.toFixed(2)}
+                                                        </p>
+                                                        {product.discount_percentage > 0 && (
+                                                            <span className="text-xs bg-pink-100 text-pink-700 px-2 py-1 rounded-full font-semibold">
+                                                                {product.discount_percentage}% OFF
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 </div>
 
                                                 {/* Actions */}
                                                 <div className="flex flex-col gap-2">
+                                                    <button
+                                                        onClick={() => handleEdit(product)}
+                                                        className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-all text-sm font-semibold"
+                                                    >
+                                                        Edit
+                                                    </button>
                                                     <button
                                                         onClick={() => toggleProductStatus(product.id, product.is_active)}
                                                         className={`
@@ -282,7 +356,7 @@ export default function AdminPage() {
                                                             }
                             `}
                                                     >
-                                                        {product.is_active ? 'In Stock' : 'Sold Out'}
+                                                        {product.is_active ? 'Active' : 'Inactive'}
                                                     </button>
                                                     <button
                                                         onClick={() => deleteProduct(product.id)}
